@@ -1,0 +1,146 @@
+---
+title: "Using R to Reproduce NCHS Data Brief No. 368"
+output:
+  html_document:
+    df_print: paged
+---  
+### Prevalence of Tooth Loss Among Older Adults: United States, 2015–2018.   
+[Data Brief No. 368](https://www.cdc.gov/nchs/products/databriefs/db368.htm)   
+\
+Load packages.
+```{r, message=FALSE}
+library(haven)
+library(reactable)
+library(srvyr)
+library(survey)
+library(tidyverse)
+```
+Read demographic files keeping variables of interest.
+```{r}
+DEMO_I <- read_xpt("https://wwwn.cdc.gov/nchs/nhanes/2015-2016/demo_i.xpt") %>%
+          select(SEQN, SDDSRVYR, RIAGENDR, RIDAGEYR, RIDRETH3, DMDEDUC2,
+                 SDMVSTRA, SDMVPSU, WTMEC2YR)
+DEMO_J <- read_xpt("https://wwwn.cdc.gov/nchs/nhanes/2017-2018/demo_j.xpt") %>%
+          select(SEQN, SDDSRVYR, RIAGENDR, RIDAGEYR, RIDRETH3, DMDEDUC2,
+                 SDMVSTRA, SDMVPSU, WTMEC2YR)
+```
+Append demographic files and create new variables. Make race/ethnicity and education factors to order the same as NCHS.
+```{r}
+DEMO <- bind_rows(DEMO_I, DEMO_J) %>%
+        mutate(gender = case_when(RIAGENDR == 1 ~ "Men",
+                                  RIAGENDR == 2 ~ "Women"),
+               age = case_when(RIDAGEYR < 65 ~ "Less than 65",
+                               RIDAGEYR < 70 ~ "65-69",
+                               RIDAGEYR < 75 ~ "70-74",
+                               TRUE ~ "75 and over"),
+               race_ethnicity = case_when(RIDRETH3 < 3 ~ "Hispanic",
+                                          RIDRETH3 == 3 ~ "Non-Hispanic white",
+                                          RIDRETH3 == 4 ~ "Non-Hispanic black"),
+               race_ethnicity = factor(race_ethnicity,
+                                      levels = c("Non-Hispanic white",
+                                                 "Non-Hispanic black",
+                                                 "Hispanic")),
+               education = case_when(DMDEDUC2 %in% 1:2 ~ "Less than high school education",
+                                     DMDEDUC2 %in% 3:5 ~ "High school education or greater"),
+               education = factor(education,
+                                  levels = c("Less than high school education",
+                                             "High school education or greater"))) %>%
+        select(SEQN, gender, age, RIDRETH3, race_ethnicity, DMDEDUC2, education, 
+               SDMVSTRA, SDMVPSU, WTMEC2YR)
+```
+Read oral health files keeping variables of interest.
+```{r}
+OHXDEN_I <- read_xpt("https://wwwn.cdc.gov/nchs/nhanes/2015-2016/ohxden_i.xpt") %>%
+            select(SEQN, OHX02TC:OHX31TC)
+OHXDEN_J <- read_xpt("https://wwwn.cdc.gov/nchs/nhanes/2017-2018/ohxden_j.xpt") %>%
+            select(SEQN, OHX02TC:OHX31TC)
+```
+Append oral health files and create variable for edentulism or complete tooth loss.
+```{r}
+OHXDEN <- bind_rows(OHXDEN_I, OHXDEN_J) %>%
+          mutate(tc = str_c(OHX02TC, OHX03TC, OHX04TC, OHX05TC, OHX06TC, OHX07TC, OHX08TC,
+                            OHX09TC, OHX10TC, OHX11TC, OHX12TC, OHX13TC, OHX14TC, OHX15TC,
+                            OHX18TC, OHX19TC, OHX20TC, OHX21TC, OHX22TC, OHX23TC, OHX24TC,
+                            OHX25TC, OHX26TC, OHX27TC, OHX28TC, OHX29TC, OHX30TC, OHX31TC),
+                 edentulism = case_when(str_detect(tc, "[4]{28}") ~ 1,
+                                        str_detect(tc, "[1-5]{28}") ~ 0)) %>%
+          select(SEQN, edentulism)
+```
+Join demographic and oral health data.
+```{r}
+One <- left_join(DEMO, OHXDEN, by = "SEQN")
+```
+Define survey design.
+```{r}
+NHANES <- One %>%
+          as_survey_design(id = SDMVPSU, strata = SDMVSTRA, 
+            nest = TRUE, weight = WTMEC2YR)
+```
+Get data for Figure 1.
+```{r}
+t1 <- NHANES %>% filter(age != "Less than 65", !is.na(edentulism)) %>%
+      summarize(gender = "All",
+                age = "Total",
+                n = unweighted(n()),
+                percent = survey_mean(edentulism) * 100)
+
+t2 <- NHANES %>% filter(age != "Less than 65", !is.na(edentulism)) %>%
+      group_by(age) %>%
+      summarize(gender = "All",
+                n = unweighted(n()),
+                percent = survey_mean(edentulism) * 100)
+
+t3 <- NHANES %>% filter(age != "Less than 65", !is.na(edentulism)) %>%
+      group_by(gender) %>%
+      summarize(age = "Total",
+                n = unweighted(n()),
+                percent = survey_mean(edentulism) * 100)
+
+t4 <- NHANES %>% filter(age != "Less than 65", !is.na(edentulism)) %>%
+      group_by(gender, age) %>%
+      summarize(n = unweighted(n()),
+                percent = survey_mean(edentulism) * 100)
+
+table1 <- bind_rows(t1, t2, t3, t4)
+```
+Create Figure 1
+```{r}
+ggplot(table1, aes(gender, percent, fill = age)) +
+  geom_bar(stat = "identity", position = position_dodge(), color = "black") +
+  geom_text(aes(label = round(percent, 1)), position = position_dodge(0.9), vjust = -0.2) +
+  labs(title = paste("Figure 1. Prevalence of complete tooth loss among adults aged 65 and",
+                     "over, by sex and age: United States, 2015–2018", sep = "\n"),
+       x = element_blank(),
+       y = "Percent") +
+  scale_fill_brewer(palette = "Blues") +
+  theme_bw() +
+  theme(legend.position = "top", legend.title = element_blank())
+```
+---
+Create table with values
+```{r}
+reactable(table1 %>%
+  pivot_wider(names_from = gender, values_from = c(n, percent, percent_se)) %>%
+    select(age, n_All, percent_All, percent_se_All, n_Men, percent_Men, percent_se_Men,
+      n_Women, percent_Women, percent_se_Women),
+  columns = list(
+    age = colDef(name = "Age Group"),
+    n_All = colDef(name = "n", format = colFormat(separators = TRUE)),
+    percent_All = colDef(name = "Percent", format = colFormat(digits = 1)),
+    percent_se_All = colDef(name = "Standard Error", format = colFormat(digits = 1)),
+    n_Men = colDef(name = "n", format = colFormat(separators = TRUE)),
+    percent_Men = colDef(name = "Percent", format = colFormat(digits = 1)),
+    percent_se_Men = colDef(name = "Standard Error", format = colFormat(digits = 1)),    
+    n_Women = colDef(name = "n", format = colFormat(separators = TRUE)),
+    percent_Women = colDef(name = "Percent", format = colFormat(digits = 1)),
+    percent_se_Women = colDef(name = "Standard Error", format = colFormat(digits = 1))),
+  columnGroups = list(
+    colGroup(name = "All",
+      columns = c("n_All", "percent_All", "percent_se_All")),
+    colGroup(name = "Men",
+      columns = c("n_Men", "percent_Men", "percent_se_Men")),
+    colGroup(name = "Women",
+      columns = c("n_Women", "percent_Women", "percent_se_Women"))),
+  striped = TRUE)
+
+```
