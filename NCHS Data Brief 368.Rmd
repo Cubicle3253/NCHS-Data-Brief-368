@@ -1,14 +1,13 @@
 ---
-title: "Using R to Reproduce NCHS Data Brief No. 368"
-output:
-  html_document:
-    df_print: paged
+title: "Using R to Replicate NCHS Data Brief No. 368"
+output: pdf_document
 ---  
 ### Prevalence of Tooth Loss Among Older Adults: United States, 2015–2018.   
 [Data Brief No. 368](https://www.cdc.gov/nchs/products/databriefs/db368.htm)   
 \
 Load packages.
 ```{r, message=FALSE}
+library(gt)
 library(haven)
 library(reactable)
 library(srvyr)
@@ -121,27 +120,31 @@ ggplot(table1, aes(gender, percent, fill = age)) +
 \
 Create data table for Figure 1.
 ```{r}
-reactable(table1 %>%
+table1 %>%
   pivot_wider(names_from = gender, values_from = c(n, percent, percent_se)) %>%
-    select(age, n_All, percent_All, percent_se_All, n_Men, percent_Men, percent_se_Men,
-      n_Women, percent_Women, percent_se_Women),
-  columns = list(
-    age = colDef(name = "Age Group", minWidth = 125),
-    n_All = colDef(name = "n", format = colFormat(separators = TRUE)),
-    percent_All = colDef(name = "Percent", format = colFormat(digits = 1)),
-    percent_se_All = colDef(name = "SE", format = colFormat(digits = 1)),
-    n_Men = colDef(name = "n", format = colFormat(separators = TRUE)),
-    percent_Men = colDef(name = "Percent", format = colFormat(digits = 1)),
-    percent_se_Men = colDef(name = "SE", format = colFormat(digits = 1)),    
-    n_Women = colDef(name = "n", format = colFormat(separators = TRUE)),
-    percent_Women = colDef(name = "Percent", format = colFormat(digits = 1)),
-    percent_se_Women = colDef(name = "SE", format = colFormat(digits = 1))),
-  columnGroups = list(
-    colGroup(name = "All", columns = c("n_All", "percent_All", "percent_se_All")),
-    colGroup(name = "Men", columns = c("n_Men", "percent_Men", "percent_se_Men")),
-    colGroup(name = "Women", columns = c("n_Women", "percent_Women", "percent_se_Women"))),
-  defaultColDef = colDef(minWidth = 75),
-  striped = TRUE)
+  select(age, n_All, percent_All, percent_se_All, n_Men, percent_Men, percent_se_Men,
+    n_Women, percent_Women, percent_se_Women) %>%
+  gt() %>%
+    tab_spanner(
+      label = "All",
+      columns = c(n_All, percent_All, percent_se_All)) %>%
+    tab_spanner(
+      label = "Men",
+      columns = c(n_Men, percent_Men, percent_se_Men)) %>%
+    tab_spanner(
+      label = "Women",
+      columns = c(n_Women, percent_Women, percent_se_Women)) %>%
+    fmt_number(
+      columns = c(n_All, n_Men, n_Women),
+      decimals = 0) %>%
+    fmt_number(
+      columns = c(percent_All, percent_se_All, percent_Men, percent_se_Men, percent_Women, percent_se_Women),
+      decimals = 1) %>%
+    cols_label(
+      age = "Age",
+      n_All = "n", percent_All = "Percent", percent_se_All = "SE",
+      n_Men = "n", percent_Men = "Percent", percent_se_Men = "SE",
+      n_Women = "n", percent_Women = "Percent", percent_se_Women = "SE")
 ```
 Get data for Figure 2.
 ```{r}
