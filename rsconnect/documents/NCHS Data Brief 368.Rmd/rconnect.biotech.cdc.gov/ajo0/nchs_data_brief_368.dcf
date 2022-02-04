@@ -1,0 +1,13 @@
+name: nchs_data_brief_368
+title: NCHS Data Brief 368
+username: ajo0
+account: ajo0
+server: rconnect.biotech.cdc.gov
+hostUrl: https://rconnect.biotech.cdc.gov/__api__
+appId: 377
+bundleId: 2075
+url: https://rconnect.biotech.cdc.gov/content/377/
+when: 1643989491.49001
+lastSyncTime: 1643989491.49001
+asMultiple: FALSE
+asStatic: TRUE
