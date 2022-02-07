@@ -1,9 +1,8 @@
 ---
 title: "Using R to Replicate NCHS Data Brief No. 368"
 output:
-  pdf_document: default
-  html_document:
-    theme: journal
+  html_document: 
+    theme: readable
 ---  
 ## Prevalence of Tooth Loss Among Older Adults: United States, 2015–2018.   
 Data Brief No. 368 (https://www.cdc.gov/nchs/products/databriefs/db368.htm)
@@ -49,9 +48,10 @@ DEMO <- bind_rows(DEMO_I, DEMO_J) %>%
 Read oral health files keeping variables of interest.
 ```{r}
 OHXDEN_I <- read_xpt("https://wwwn.cdc.gov/nchs/nhanes/2015-2016/ohxden_i.xpt") %>%
-  select(SEQN, OHX02TC:OHX31TC)
+  select(SEQN, OHX02TC:OHX15TC, OHX18TC:OHX31TC)
+
 OHXDEN_J <- read_xpt("https://wwwn.cdc.gov/nchs/nhanes/2017-2018/ohxden_j.xpt") %>%
-  select(SEQN, OHX02TC:OHX31TC)
+  select(SEQN, OHX02TC:OHX15TC, OHX18TC:OHX31TC)
 ```
 Append oral health files and create variable for edentulism or complete tooth loss.
 ```{r}
@@ -72,10 +72,11 @@ One <- left_join(DEMO, OHXDEN, by = "SEQN")
 Define survey design.
 ```{r}
 NHANES <- One %>%
-  as_survey_design(id = SDMVPSU, strata = SDMVSTRA, nest = TRUE, weight = WTMEC2YR)
+  as_survey_design(id = SDMVPSU, strata = SDMVSTRA, nest = TRUE, weight = WTMEC2YR,
+    survey.lonely.psu = "adjust")
 
 NHANES <- NHANES %>%
-  filter(!is.na(age) & !is.na(edentulism))  
+  filter(!is.na(age) & !is.na(edentulism))
 ```
 Create data for Figure 1.
 ```{r}
@@ -113,12 +114,6 @@ ggplot(table1, aes(gender, percent, fill = age)) +
   theme(legend.position=c(.5, .95), legend.direction = "horizontal")
 ```
 <HR style="height:1px;color:black;background-color:black;">
-Chi-square tests of association.
-```{r}
-svychisq(~edentulism+age, NHANES)$p.value %>% as.numeric()
-svychisq(~edentulism+age, subset(NHANES, gender == "Men"))$p.value %>% as.numeric() 
-svychisq(~edentulism+age, subset(NHANES, gender == "Women"))$p.value %>% as.numeric() 
-```
 All - Test of linear trend.
 ```{r}
 summary(svyglm(edentulism~as.numeric(age), NHANES, family = quasibinomial()))$coefficients
@@ -186,12 +181,6 @@ ggplot(table2, aes(gender, percent, fill = race_ethnicity)) +
   theme(legend.position=c(.5, .95), legend.direction = "horizontal")
 ```
 <HR style="height:1px;color:black;background-color:black;">
-Chi-square tests of association.
-```{r}
-svychisq(~edentulism+race_ethnicity, NHANES)$p.value %>% as.numeric()
-svychisq(~edentulism+race_ethnicity, subset(NHANES, gender == "Men"))$p.value %>% as.numeric() 
-svychisq(~edentulism+race_ethnicity, subset(NHANES, gender == "Women"))$p.value %>% as.numeric()
-```
 All - Pairwise comparisons of proportions.
 ```{r}
 svyttest(edentulism~race_ethnicity, subset(NHANES,
@@ -219,20 +208,21 @@ svyttest(edentulism~race_ethnicity, subset(NHANES,
 svyttest(edentulism~race_ethnicity, subset(NHANES, 
   gender == "Women" & race_ethnicity %in% c("Non-Hispanic black", "Hispanic")))$p.value %>% as.numeric() 
 ```
-Non-Hispanic white - Pairwise comparison of proportions.
+Non-Hispanic white - Pairwise comparison of proportions.  
+*(Note: Using design degrees of freedom to replicate SUDAAN p-value.)*
 ```{r}
-svyttest(edentulism~gender, subset(NHANES, 
-  race_ethnicity == "Non-Hispanic white"))$p.value %>% as.numeric()
+t <- svyttest(edentulism~gender, subset(NHANES, race_ethnicity == "Non-Hispanic white"))
+sprintf("p-value = %.4f", pt(t$statistic, degf(NHANES)) * 2)
 ```
-Non-Hispanic black - Pairwise comparison of proportions.
+Non-Hispanic black - Pairwise comparison of proportions.  
 ```{r}
-svyttest(edentulism~gender, subset(NHANES, 
-  race_ethnicity == "Non-Hispanic black"))$p.value %>% as.numeric()
+t <- svyttest(edentulism~gender, subset(NHANES, race_ethnicity == "Non-Hispanic black"))
+sprintf("p-value = %.4f", (1 - pt(t$statistic, degf(NHANES))) * 2)
 ```
 Hispanic - Pairwise comparison of proportions.
 ```{r}
-svyttest(edentulism~gender, subset(NHANES, 
-  race_ethnicity == "Hispanic"))$p.value %>% as.numeric()
+t <- svyttest(edentulism~gender, subset(NHANES, race_ethnicity == "Hispanic"))
+sprintf("p-value = %.4f", (1 - pt(t$statistic, degf(NHANES))) * 2)
 ```
 <HR style="height:1px;color:black;background-color:black;">
 Create table showing data for Figure 2.

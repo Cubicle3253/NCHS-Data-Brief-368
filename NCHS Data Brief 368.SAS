@@ -58,6 +58,29 @@ rformat race_ethnicity ref.;
 rformat education edf.;
 
 proc descript data=one notsorted design=wr;
+  subpopx ridageyr > 0 and race_ethnicity = 3;
+  nest sdmvstra sdmvpsu;
+  weight wtmec2yr;
+  class riagendr ridageyr race_ethnicity education/nofreq;
+  recode ridageyr = (65 70 75);
+  var edentulism;
+  catlevel 1;
+  table ridageyr race_ethnicity education;
+  pairwise riagendr/name="Gender";
+  setenv labwidth=24;
+  print nsum t_pct p_pct/style=nchs;
+rformat riagendr genf.;
+rformat ridageyr agef.;
+rformat race_ethnicity ref.;
+rformat education edf.;
+run;
+
+proc freq data=one;
+  where ridageyr >= 65 and race_ethnicity = 3 and edentulism is not missing;
+  table sdmvstra*sdmvpsu sdm:/nopercent norow nocol;
+run;
+
+proc descript data=one notsorted design=wr;
   subpopx ridageyr > 0;
   nest sdmvstra sdmvpsu;
   weight wtmec2yr;

@@ -5,9 +5,9 @@ account: ajo0
 server: rconnect.biotech.cdc.gov
 hostUrl: https://rconnect.biotech.cdc.gov/__api__
 appId: 377
-bundleId: 2075
+bundleId: 2082
 url: https://rconnect.biotech.cdc.gov/content/377/
-when: 1643989491.49001
-lastSyncTime: 1643989491.49001
+when: 1644248594.6808
+lastSyncTime: 1644248594.6808
 asMultiple: FALSE
 asStatic: TRUE
