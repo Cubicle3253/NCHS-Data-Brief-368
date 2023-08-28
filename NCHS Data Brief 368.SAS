@@ -1,5 +1,5 @@
 *************************************
-* PROGRAM: NGHS Data Brief 368.sas  *
+* PROGRAM: NCHS Data Brief 368.sas  *
 * DATE: 02/04/2022                  *
 ************************************;
 options nodate pageno=1;
